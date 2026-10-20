@@ -334,18 +334,8 @@ docker compose down                      # if you used Compose
 
 ---
 
-## 11. Possible Viva Questions
 
-- **Why a queue instead of the event-service calling workers directly?** It decouples the producer from the consumers. Workers can be added or removed at any time without anyone knowing their addresses, bursts are absorbed (back-pressure), and the load balances itself (a fast worker simply pulls more jobs).
-- **What happens if a worker crashes mid-job?** `BLMOVE` moved the job atomically into `certiflow:processing`, so it is not lost. Errors inside processing are retried up to 3 times. K8s restarts the pod. *(A production improvement would be a "reaper" that re-queues jobs stuck in the processing list for too long.)*
-- **Why HMAC and not just a database lookup?** A lookup only proves the ID exists. The HMAC proves the *content* (name, event, date) hasn't been altered, and only services holding the secret can create valid signatures.
-- **What is the bottleneck / single point of failure?** Redis (1 replica). Improvements would be Redis Sentinel or Cluster, or a managed queue (RabbitMQ, Kafka), plus object storage (S3 or MinIO) for the PDFs instead of storing them in Redis.
-- **Why is the gateway NodePort and the others ClusterIP?** Only the gateway should be reachable from outside. The internal services are reachable only inside the cluster.
-- **How could autoscaling be smarter?** Scale on queue length instead of CPU, using **KEDA** with its Redis-list scaler.
-
----
-
-## 12. Future Scope
+## 11. Future Scope
 - KEDA autoscaling on queue length
 - Email delivery microservice (another queue consumer)
 - MinIO / S3 for PDF storage; Redis Sentinel for high availability
