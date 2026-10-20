@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-service
+  namespace: certiflow
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: event-service}
+  template:
+    metadata:
+      labels: {app: event-service}
+    spec:
+      containers:
+        - name: event-service
+          image: certiflow/event-service:1.0
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 5001}]
+          envFrom: [{configMapRef: {name: certiflow-config}}]
+          resources:
+            requests: {cpu: 100m, memory: 96Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          readinessProbe:
+            httpGet: {path: /health, port: 5001}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health, port: 5001}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-service
+  namespace: certiflow
+spec:
+  selector: {app: event-service}
+  ports: [{port: 5001, targetPort: 5001}]

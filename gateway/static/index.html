@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CertiFlow</title>
+<style>
+  :root{--ink:#1f2a44;--gold:#b8892b;--bg:#f5f3ee;--card:#fff;--muted:#6b7280;--ok:#1f7a4d;--bad:#b42318;--line:#e5e1d8}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:var(--ink);color:#fff;padding:18px 24px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  header h1{margin:0;font-size:22px;letter-spacing:.5px}
+  header span{color:#cdd3e0;font-size:13px}
+  nav{display:flex;gap:4px;padding:0 24px;background:var(--ink)}
+  nav button{background:none;border:0;color:#cdd3e0;padding:10px 14px;cursor:pointer;font-size:14px;border-bottom:3px solid transparent}
+  nav button.active{color:#fff;border-color:var(--gold)}
+  main{max-width:1100px;margin:0 auto;padding:24px 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+  h2{margin:0 0 12px;font-size:17px}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  input,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;font:inherit}
+  textarea{min-height:170px;font-family:ui-monospace,Consolas,monospace;font-size:13px}
+  .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+  .btn{background:var(--ink);color:#fff;border:0;border-radius:7px;padding:10px 16px;cursor:pointer;font-size:14px;margin-top:12px}
+  .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--ink)}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .tile b{display:block;font-size:28px}
+  .tile small{color:var(--muted)}
+  .bar{height:10px;background:#eee;border-radius:6px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--gold);transition:width .4s}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600}
+  tr.click{cursor:pointer} tr.click:hover{background:#faf8f3}
+  .pill{padding:2px 8px;border-radius:10px;font-size:12px;background:#eee}
+  .pill.generated{background:#e3f4ea;color:var(--ok)} .pill.failed{background:#fde8e6;color:var(--bad)}
+  .pill.generating{background:#fff3d6;color:#8a5a00}
+  .worker{display:grid;grid-template-columns:200px 1fr 60px;gap:10px;align-items:center;margin:6px 0;font-size:13px}
+  .result{padding:14px;border-radius:8px;margin-top:12px}
+  .result.ok{background:#e3f4ea;border:1px solid #a6dcbc} .result.bad{background:#fde8e6;border:1px solid #f3b4ad}
+  .msg{font-size:13px;margin-top:10px}
+  a{color:var(--ink)}
+  .hidden{display:none}
+  .scroll{max-height:420px;overflow:auto}
+</style>
+</head>
+<body>
+<header><h1>CertiFlow</h1><span>Distributed certificate generation &amp; verification for college events</span></header>
+<nav>
+  <button data-tab="create" class="active">1. Issue certificates</button>
+  <button data-tab="dash">2. Live cluster dashboard</button>
+  <button data-tab="verify">3. Verify a certificate</button>
+</nav>
+<main>
+  <!-- CREATE -->
+  <section id="create">
+    <div class="card">
+      <h2>New certificate batch</h2>
+      <div class="row">
+        <div><label>Event name</label><input id="ev-name" value="Hackathon PCCOE 2026"></div>
+        <div><label>Organiser</label><input id="ev-org" value="Computer Engineering Dept, PCCOE"></div>
+        <div><label>Event date</label><input id="ev-date" value="18 Oct 2026"></div>
+      </div>
+      <label>Participants (one per line: name, email, role)</label>
+      <textarea id="ev-list">Aarav Kulkarni, aarav@example.com, Winner
+Sneha Patil, sneha@example.com, Participant
+Rohan Deshmukh, rohan@example.com, Volunteer</textarea>
+      <button class="btn ghost" id="sample">Fill 200 sample participants</button>
+      <button class="btn" id="submit">Submit batch to cluster</button>
+      <div class="msg" id="create-msg"></div>
+    </div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section id="dash" class="hidden">
+    <div class="tiles" style="margin-bottom:18px">
+      <div class="tile"><small>Jobs waiting in queue</small><b id="t-queue">0</b></div>
+      <div class="tile"><small>Being processed now</small><b id="t-prog">0</b></div>
+      <div class="tile"><small>Active worker pods</small><b id="t-workers">0</b></div>
+      <div class="tile"><small>Total certificates generated</small><b id="t-total">0</b></div>
+    </div>
+    <div class="card">
+      <h2>Load distribution across worker pods</h2>
+      <div id="workers"><small>No workers reporting yet.</small></div>
+      <div class="msg" style="color:var(--muted)">Scale with <code>kubectl scale deploy/worker --replicas=6 -n certiflow</code> and watch new pods appear here.</div>
+    </div>
+    <div class="card">
+      <h2>Events</h2>
+      <table><thead><tr><th>ID</th><th>Event</th><th>Progress</th><th>Done</th><th>Accepted by pod</th></tr></thead>
+      <tbody id="events"></tbody></table>
+    </div>
+    <div class="card hidden" id="detail-card">
+      <h2 id="detail-title"></h2>
+      <div class="scroll"><table><thead><tr><th>Certificate ID</th><th>Name</th><th>Role</th><th>Status</th><th>Generated by pod</th><th></th></tr></thead>
+      <tbody id="detail"></tbody></table></div>
+    </div>
+    <div class="msg" id="served" style="color:var(--muted)"></div>
+  </section>
+
+  <!-- VERIFY -->
+  <section id="verify" class="hidden">
+    <div class="card">
+      <h2>Verify certificate authenticity</h2>
+      <label>Certificate ID (printed on the certificate / in the QR code)</label>
+      <input id="v-id" placeholder="CF-EVxxxxxx-XXXXXXXX">
+      <button class="btn" id="v-btn">Verify</button>
+      <div id="v-result"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let currentEvent = null;
+
+function show(tab){
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("active", b.dataset.tab===tab));
+  ["create","dash","verify"].forEach(id=>$("#"+id).classList.toggle("hidden", id!==tab));
+}
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>show(b.dataset.tab));
+
+const FIRST=["Aarav","Sneha","Rohan","Priya","Aditya","Isha","Kunal","Neha","Omkar","Riya","Sahil","Tanvi","Vedant","Anushka","Yash","Pooja","Harsh","Gauri","Atharv","Mitali"];
+const LAST=["Patil","Kulkarni","Deshmukh","Joshi","Shinde","Pawar","Jadhav","More","Gaikwad","Kale"];
+$("#sample").onclick=()=>{
+  const lines=[];
+  for(let i=0;i<200;i++){
+    const f=FIRST[i%FIRST.length], l=LAST[Math.floor(i/FIRST.length)%LAST.length];
+    lines.push(`${f} ${l}, ${f.toLowerCase()}.${l.toLowerCase()}${i}@example.com, ${i%25===0?"Winner":"Participant"}`);
+  }
+  $("#ev-list").value=lines.join("\n");
+};
+
+$("#submit").onclick=async()=>{
+  const participants=$("#ev-list").value.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{
+    const [name,email,role]=l.split(",").map(x=>(x||"").trim()); return {name,email,role:role||"Participant"};
+  });
+  const body={name:$("#ev-name").value,organizer:$("#ev-org").value,date:$("#ev-date").value,participants};
+  $("#create-msg").textContent="Submitting...";
+  try{
+    const res=await fetch("/api/events",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||res.status);
+    $("#create-msg").innerHTML=`Event <b>${esc(data.event_id)}</b> accepted by pod <code>${esc(data.accepted_by)}</code>; ${data.queued} jobs queued. Opening dashboard...`;
+    currentEvent=data.event_id; setTimeout(()=>show("dash"),800);
+  }catch(e){ $("#create-msg").textContent="Error: "+e.message; }
+};
+
+async function refresh(){
+  if($("#dash").classList.contains("hidden")) return;
+  try{
+    const [s,e]=await Promise.all([fetch("/api/stats").then(r=>r.json()), fetch("/api/events").then(r=>r.json())]);
+    $("#t-queue").textContent=s.queue_length; $("#t-prog").textContent=s.in_progress;
+    $("#t-workers").textContent=s.workers.length; $("#t-total").textContent=s.total_generated;
+    const max=Math.max(1,...s.workers.map(w=>w.processed));
+    $("#workers").innerHTML=s.workers.length? s.workers.map(w=>`<div class="worker"><code>${esc(w.pod)}</code><div class="bar"><i style="width:${100*w.processed/max}%"></i></div><b>${w.processed}</b></div>`).join("") : "<small>No workers reporting yet.</small>";
+    $("#events").innerHTML=e.events.map(ev=>{
+      const pct=Math.round(100*(+ev.done)/(+ev.total||1));
+      return `<tr class="click" data-id="${esc(ev.event_id)}"><td>${esc(ev.event_id)}</td><td>${esc(ev.name)}</td><td style="width:30%"><div class="bar"><i style="width:${pct}%"></i></div></td><td>${ev.done}/${ev.total}${+ev.failed?` (${ev.failed} failed)`:""}</td><td><code>${esc(ev.accepted_by)}</code></td></tr>`;
+    }).join("");
+    document.querySelectorAll("#events tr").forEach(tr=>tr.onclick=()=>{currentEvent=tr.dataset.id;loadDetail();});
+    $("#served").textContent=`Stats served by event-service pod ${s.served_by}`;
+    if(currentEvent) loadDetail();
+  }catch(err){ $("#served").textContent="Cluster unreachable: "+err.message; }
+}
+async function loadDetail(){
+  const d=await fetch("/api/events/"+currentEvent).then(r=>r.json());
+  if(!d.event) return;
+  $("#detail-card").classList.remove("hidden");
+  $("#detail-title").textContent=`${d.event.name} (${d.event.event_id})`;
+  $("#detail").innerHTML=d.certificates.map(c=>`<tr><td><code>${esc(c.cert_id)}</code></td><td>${esc(c.name)}</td><td>${esc(c.role)}</td><td><span class="pill ${esc(c.status)}">${esc(c.status)}</span></td><td><code>${esc(c.worker||"-")}</code></td><td>${c.status==="generated"?`<a href="/api/certificate/${esc(c.cert_id)}/pdf" target="_blank">PDF</a> · <a href="#" onclick="verifyId('${esc(c.cert_id)}');return false">verify</a>`:""}</td></tr>`).join("");
+}
+setInterval(refresh,1500);
+document.querySelector('nav button[data-tab="dash"]').addEventListener("click",refresh);
+
+async function verifyId(id){
+  show("verify"); $("#v-id").value=id; $("#v-result").innerHTML="Checking...";
+  const res=await fetch("/api/verify/"+encodeURIComponent(id.trim()));
+  const d=await res.json();
+  if(d.valid){
+    const c=d.certificate;
+    $("#v-result").innerHTML=`<div class="result ok"><b>✔ Authentic certificate</b><br>${esc(c.name)} — ${esc(c.role)}<br>${esc(c.event_name)} by ${esc(c.organizer)}, ${esc(c.date)}<br><small>Generated ${esc(c.generated_at)} by pod <code>${esc(c.worker)}</code> · verified by pod <code>${esc(d.verified_by)}</code></small><br><a href="/api/certificate/${esc(c.cert_id)}/pdf" target="_blank">Open PDF</a></div>`;
+  }else{
+    $("#v-result").innerHTML=`<div class="result bad"><b>✘ Not valid</b><br>${esc(d.reason)}<br><small>verified by pod <code>${esc(d.verified_by)}</code></small></div>`;
+  }
+}
+$("#v-btn").onclick=()=>verifyId($("#v-id").value);
+
+// QR codes on certificates open /?verify=<id>
+const q=new URLSearchParams(location.search).get("verify");
+if(q) verifyId(q);
+</script>
+</body>
+</html>

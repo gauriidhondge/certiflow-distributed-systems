@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: certiflow-config
+  namespace: certiflow
+data:
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  EVENT_SERVICE_URL: "http://event-service:5001"
+  VERIFY_SERVICE_URL: "http://verify-service:5002"
+  PUBLIC_URL: "http://localhost:30080"
+  CPU_WORK_MS: "300"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: certiflow-secret
+  namespace: certiflow
+type: Opaque
+stringData:
+  SIGNING_SECRET: "pccoe-ds-miniproject-secret"

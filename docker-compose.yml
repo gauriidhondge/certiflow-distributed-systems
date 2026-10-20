@@ -1,0 +1,39 @@
+# CertiFlow - local multi-container run (Docker Compose)
+# Start:  docker compose up --build
+# Scale:  docker compose up -d --scale worker=5
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  event-service:
+    build: ./event-service
+    environment:
+      REDIS_HOST: redis
+    depends_on: [redis]
+
+  verify-service:
+    build: ./verify-service
+    environment:
+      REDIS_HOST: redis
+      SIGNING_SECRET: pccoe-ds-miniproject-secret
+    depends_on: [redis]
+
+  worker:
+    build: ./worker
+    environment:
+      REDIS_HOST: redis
+      SIGNING_SECRET: pccoe-ds-miniproject-secret
+      PUBLIC_URL: http://localhost:8081
+      CPU_WORK_MS: "300"
+    depends_on: [redis]
+    deploy:
+      replicas: 3
+
+  gateway:
+    build: ./gateway
+    environment:
+      EVENT_SERVICE_URL: http://event-service:5001
+      VERIFY_SERVICE_URL: http://verify-service:5002
+    ports: ["8081:8080"]
+    depends_on: [event-service, verify-service]
